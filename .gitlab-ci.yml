@@ -1,0 +1,46 @@
+stages:
+- build
+- mirror
+
+
+variables:
+  UPSTREAM_REPOSITORY: "git@github.com:bwsw/cs-simulator-kafka.git"
+  UPSTREAM_BRANCH: "master"
+  DOCKER_IMAGE: "bwsw/cs-simulator-kafka:latest"
+
+
+build:
+  stage: build
+  only:
+  - master
+  before_script:
+  - docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_TOKEN
+  script:
+  - docker build -t $DOCKER_IMAGE .
+  - docker push $DOCKER_IMAGE
+  after_script:
+  - docker logout
+  tags:
+  - build-as-docker
+  - cs-eco-builder
+
+
+mirror-master:
+  stage: mirror
+  variables:
+    GIT_STRATEGY: clone
+  only:
+  - master
+  script:
+  - mkdir -p ~/.ssh
+  - echo $GITHUB_MIRROR_PRIVATE | base64 -d > ~/.ssh/id_rsa
+  - echo $GITHUB_MIRROR_PUBLIC > ~/.ssh/id_rsa.pub
+  - ssh-keyscan -t rsa,dsa,ecdsa github.com >> ~/.ssh/known_hosts
+  - chmod -R go-rwx ~/.ssh
+  - git remote add mirror $UPSTREAM_REPOSITORY
+  - git remote show mirror
+  - git fetch mirror
+  - git push --progress mirror HEAD:$UPSTREAM_BRANCH
+  tags:
+  - cs-eco-builder
+  - build-in-docker
